@@ -67,12 +67,22 @@ class MyMapReduce:
             mapped_kvs.extend(chunk_kvs) #A appends k,v pairs to final kvs result
 
             # assign each kv pair to a reducer task
-            if combiner:
-                # [ADD COMBINER HERE]
-                print("\nCombiner not implemented in this version.")  # remove this line
-            else:
-                for (k, v) in mapped_kvs:
-                    namenode_m2r.append((self.partitionFunction(k), (k, v)))
+        if combiner:
+            valPerK = dict()
+            for (k,v) in mapped_kvs:
+                try:
+                    valPerK[k].append(v)
+                except KeyError:
+                    valPerK[k] = [v]
+            for k, vs in valPerK.items():
+                if vs:
+                    fromIntermediateReducer = self.reduce(k, vs)  # gives back (k,sum(count))
+                    key = fromIntermediateReducer[0]
+                    value = fromIntermediateReducer[1]
+                    namenode_m2r.append((self.partitionFunction(key), (key, value)))
+        else:
+            for (k, v) in mapped_kvs:
+                namenode_m2r.append((self.partitionFunction(k), (k, v)))
 
     def partitionFunction(self, k): #A based on the key characters it allocates a node for processing
         # given a key returns the reduce task to send it
@@ -236,14 +246,44 @@ class SetDifferenceMR(MyMapReduce):
             return None
 
 
-class MatrixMultMR(MyMapReduce):  # [TODO]
+class MatrixMultMR(MyMapReduce):
     def map(self, k, v):
-        # <COMPLETE>
-        return [(k, v)]
+        kvs = []
+        row = int(k[1])
+        col = int(k[2])
+        matrix = k[0][:k[0].find(":")]
+        f1 = k[0].find(":")
+        f2 = k[0].find(",")
+        f4 = k[0].find(":", f1 + 1)
+        f3 = k[0].find(",", f2 + 1)
+        i = int(k[0][f1 + 1:f2])
+        j = int(k[0][f2 + 1:f4])
+        kval = int(k[0][f3 + 1:])
+        if (matrix == "A"):
+            for loop in range(kval):
+                kvs.append(((row + 1, loop + 1), (matrix, col + 1, v)))
+            return kvs;
+        else:
+            for loop in range(i):
+                kvs.append(((loop + 1, col + 1), (matrix, row + 1, v)))
+            return kvs;
 
     def reduce(self, k, vs):
-        # <COMPLETE>
-        return (k, vs)
+        def sortByJ(val):
+            return val[1];
+        A = []
+        B = []
+        for v in vs:
+            if (v[0] == 'A'):
+                A.append(v)
+            else:
+                B.append(v)
+        A.sort(key=sortByJ)
+        B.sort(key=sortByJ)
+        sum = 0;
+        for a, b in zip(A, B):
+            sum = sum + a[2] * b[2];
+        return (('R',k[0]-1,k[1]-1), sum)
 
 
 ##########################################################################
@@ -277,6 +317,7 @@ if __name__ == "__main__":  # [Uncomment peices to test]
              "I believe that at the end of the century the use of words and general educated opinion will have altered so much that one will be able to speak of machines thinking without expecting to be contradicted."),
             (9, "The car raced past the finish line just in time."),
             (10, "Car engines purred and the tires burned.")]
+    '''
     print("\nWord Count Basic WITHOUT Combiner:")
     mrObjectNoCombiner = WordCountBasicMR(data, 4, 3)
     mrObjectNoCombiner.runSystem()
@@ -284,7 +325,6 @@ if __name__ == "__main__":  # [Uncomment peices to test]
     print("\nWord Count Basic WITH Combiner:")
     mrObjectWCombiner = WordCountBasicMR(data, 4, 3, use_combiner=True)
     mrObjectWCombiner.runSystem()
-    '''
 
     ####################
     ##run SetDifference (nothing to do here; just another test)
@@ -303,10 +343,10 @@ if __name__ == "__main__":  # [Uncomment peices to test]
 
     ###################
     ##run Matrix Multiply:
-    '''	
+
     print("\n\n*****************\n Matrix Multiply\n*****************\n")
     #format: 'A|B:A.size:B.size
-    test1 = [(('A:2,1:1,2', 0, 0), 2.0), (('A:2,1:1,2', 0, 1), 1.0), (('B:2,1:1,2', 0, 0), 1), (('B:2,1:1,2', 1, 0), 3)   ]
+    test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)   ]
     test2 = createSparseMatrix([[1, 2, 4], [4, 8, 16]], 'A:2,3:3,3') + createSparseMatrix([[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
 
     test3 = createSparseMatrix(np.random.randint(-10, 10, (10,100)), 'A:10,100:100,12') + \
@@ -323,4 +363,3 @@ if __name__ == "__main__":  # [Uncomment peices to test]
 
     mrObject = MatrixMultMR(test3, 16, 10)
     mrObject.runSystem()
-    '''

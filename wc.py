@@ -36,19 +36,35 @@ class MyMapReduce:
     def mapTask(self, data_chunk, namenode_m2r, combiner=False):
         # runs the mappers on each record within the data_chunk and assigns each k,v to a reduce task
         mapped_kvs = []  # stored keys and values resulting from a map
+        print(f'Data {data_chunk}')
         for (k, v) in data_chunk:
             # run mappers:
+            print(f'Calling map with - {k} {v}')
             chunk_kvs = self.map(k, v)  # the resulting keys and values after running the map task
             mapped_kvs.extend(chunk_kvs) #A appends k,v pairs to final kvs result
+            pprint(f'Mapped Keys - {mapped_kvs}')
             # assign each kv pair to a reducer task
-            if combiner:
-                # [ADD COMBINER HERE]
-                print("\nCombiner not implemented in this version.")  # remove this line
-            else:
-                for (k, v) in mapped_kvs:
-                    namenode_m2r.append((self.partitionFunction(k), (k, v)))
-                    #print(f'here{namenode_m2r}')
-
+        if combiner:
+            valPerK = dict()
+            for (k,v) in mapped_kvs:
+                try:
+                    valPerK[k].append(v)
+                except KeyError:
+                    valPerK[k] = [v]
+            print(f'{valPerK}')
+            for k, vs in valPerK.items():
+                if vs:
+                    fromIntermediateR = self.reduce(k, vs)  # gives back (k,sum(count))
+                    namenode_m2r.append((self.partitionFunction(fromIntermediateR[0]), (fromIntermediateR[0], fromIntermediateR[1])))
+            print("\nCombiner implemented in this version.")  # remove this line
+        else:
+            print("Else part")
+            for (k, v) in mapped_kvs:
+                print(f'Creating RNODE')
+                namenode_m2r.append((self.partitionFunction(k), (k, v)))
+                print(f'here{namenode_m2r}')
+        print("\n")
+        print(f'END MAP')
     def partitionFunction(self, k): #A based on the key characters it allocates a node for processing
         # given a key returns the reduce task to send it
         node_number = np.sum([ord(c) for c in str(k)]) % self.num_reduce_tasks
@@ -122,7 +138,7 @@ class MyMapReduce:
             p.join()
             # print output from map tasks
         print("namenode_m2r after map tasks complete:")
-        #pprint(sorted(list(namenode_m2r)))#A basically pretty print breaks the output to single line to make it easier for interpreter
+        pprint(sorted(list(namenode_m2r)))#A basically pretty print breaks the output to single line to make it easier for interpreter
 
         ##[SEGMENT 4]
         # What: <your description here>
@@ -182,9 +198,15 @@ if __name__ == "__main__":  # [Uncomment peices to test]
     ##run WordCount:
 
     print("\n\n*****************\n Word Count\n*****************\n")
-    data = [(1, "The horse raced past the barn fell"),
-            (2, "The complex houses married and single soldiers and their families"),
-            (3, "Car engines purred and the tires burned.")]
+    data = [(1, "The word"),
+            (2, "The word"),
+            (3, "The word"),
+            (4, "The word"),
+            (5, "The word"),
+            (6, "The word"),
+            (7, "The word"),
+            (8, "The word")]
+
     print("\nWord Count Basic WITHOUT Combiner:")
     mrObjectNoCombiner = WordCountBasicMR(data, 2, 3)
     mrObjectNoCombiner.runSystem()
