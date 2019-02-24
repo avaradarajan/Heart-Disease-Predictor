@@ -1,3 +1,28 @@
+##########################################################################
+## MyMapReduceSystem.py  v 0.32
+##
+## Implements a basic version of MapReduce intended to run
+## on multiple threads of a single system. This implementation
+## is simply intended as an instructional tool for students
+## to better understand what a MapReduce system is doing
+## in the backend in order to better understand how to
+## program effective mappers and reducers.
+##
+## MyMapReduce is meant to be inheritted by programs
+## using it. See the example "WordCountMR" class for
+## an exaample of how a map reduce programmer would
+## use the MyMapReduce system by simply defining
+## a map and a reduce method.
+##
+##
+## Original Code written by H. Andrew Schwartz
+## for SBU's Big Data Analytics Course
+## version 0.32 - Spring 2019
+##
+## Student Name: Anandh Varadarajan
+## Student ID: 112505082
+
+
 import sys
 from abc import ABCMeta, abstractmethod
 from multiprocessing import Process, Manager
@@ -36,24 +61,29 @@ class MyMapReduce:
     def mapTask(self, data_chunk, namenode_m2r, combiner=False):
         # runs the mappers on each record within the data_chunk and assigns each k,v to a reduce task
         mapped_kvs = []  # stored keys and values resulting from a map
-        print(f'Data {data_chunk}')
         for (k, v) in data_chunk:
             # run mappers:
-            #print(f'Calling map with - {k} {v}')
             chunk_kvs = self.map(k, v)  # the resulting keys and values after running the map task
             mapped_kvs.extend(chunk_kvs) #A appends k,v pairs to final kvs result
-            #pprint(f'Mapped Keys - {mapped_kvs}')
+
             # assign each kv pair to a reducer task
-        pprint(f'Mapped{mapped_kvs}')
         if combiner:
-            print (":")
+            valPerK = dict()
+            for (k,v) in mapped_kvs:
+                try:
+                    valPerK[k].append(v)
+                except KeyError:
+                    valPerK[k] = [v]
+            for k, vs in valPerK.items():
+                if vs:
+                    fromIntermediateReducer = self.reduce(k, vs)  # gives back (k,sum(count))
+                    key = fromIntermediateReducer[0]
+                    value = fromIntermediateReducer[1]
+                    namenode_m2r.append((self.partitionFunction(key), (key, value)))
         else:
             for (k, v) in mapped_kvs:
-                #print(f'Creating RNODE')
                 namenode_m2r.append((self.partitionFunction(k), (k, v)))
-        #pprint(list(namenode_m2r))
-        #print("\n")
-        #print(f'END MAP')
+
     def partitionFunction(self, k): #A based on the key characters it allocates a node for processing
         # given a key returns the reduce task to send it
         node_number = np.sum([ord(c) for c in str(k)]) % self.num_reduce_tasks
@@ -110,11 +140,9 @@ class MyMapReduce:
             chunkEnd = min(chunkStart + chunkSize, len(self.data))
             chunk = self.data[chunkStart:chunkEnd]
             # print(" starting map task on ", chunk) #debug
-            #print(f'{chunk} END')
             processes.append(Process(target=self.mapTask, args=(chunk, namenode_m2r, self.use_combiner)))
             processes[-1].start()
             chunkStart = chunkEnd
-
 
         # [SEGMENT 3]
         # What: We are looping through all the processes created and waiting for each of the process to complete execution so that
@@ -124,7 +152,6 @@ class MyMapReduce:
         # join map task processes back
         for p in processes:
             p.join()
-            #print(f'Length of map output {len(namenode_m2r)}')
             # print output from map tasks
         print("namenode_m2r after map tasks complete:")
         pprint(sorted(list(namenode_m2r)))
@@ -168,7 +195,58 @@ class MyMapReduce:
         # return all key-value pairs:
         return namenode_fromR
 
-class MatrixMultMR(MyMapReduce):  # [TODO]
+
+##########################################################################
+##########################################################################
+##Map Reducers:
+
+class WordCountMR(MyMapReduce):  # [DONE]
+    # the mapper and reducer for word count
+    def map(self, k, v):  # [DONE]
+        counts = dict()
+        for w in v.split():
+            w = w.lower()  # makes this case-insensitive
+            try:  # try/except KeyError is just a faster way to check if w is in counts:
+                counts[w] += 1
+            except KeyError:
+                counts[w] = 1
+        return counts.items()
+
+    def reduce(self, k, vs):  # [DONE]
+        return (k, np.sum(vs))
+
+
+class WordCountBasicMR(MyMapReduce):  # [DONE]
+    # mapper and reducer for a more basic word count
+    # -- uses a mapper that does not do any counting itself
+    def map(self, k, v):
+        kvs = []
+        counts = dict()
+        for w in v.split():
+            kvs.append((w.lower(), 1))
+        return kvs
+
+    def reduce(self, k, vs):
+        return (k, np.sum(vs))
+
+
+class SetDifferenceMR(MyMapReduce):
+    # contains the map and reduce function for set difference
+    # Assume that the mapper receives the "set" as a list of any primitives or comparable objects
+    def map(self, k, v):
+        toReturn = []
+        for i in v:
+            toReturn.append((i, k))
+        return toReturn
+
+    def reduce(self, k, vs):
+        if len(vs) == 1 and vs[0] == 'R':
+            return k
+        else:
+            return None
+
+
+class MatrixMultMR(MyMapReduce):
     def map(self, k, v):
         kvs = []
         row = int(k[1])
@@ -181,24 +259,18 @@ class MatrixMultMR(MyMapReduce):  # [TODO]
         i = int(k[0][f1 + 1:f2])
         j = int(k[0][f2 + 1:f4])
         kval = int(k[0][f3 + 1:])
-        print(f'ItH {k[0]}')
-        #print(f'i={i} k={k} mat={matrix}  j={j}  value={v} row={row} col={col} ')
-        if(matrix=="A"):
+        if (matrix == "A"):
             for loop in range(kval):
-                kvs.append(((row+1,loop+1),(matrix,col+1,v)))
-            #pprint(f'Output of Reduce step -> {kvs}')
+                kvs.append(((row + 1, loop + 1), (matrix, col + 1, v)))
             return kvs;
         else:
             for loop in range(i):
-                kvs.append(((loop+1, col+1), (matrix, row+1, v)))
-            #pprint(f'Output of Reduce step -> {kvs}')
+                kvs.append(((loop + 1, col + 1), (matrix, row + 1, v)))
             return kvs;
 
     def reduce(self, k, vs):
-        #print(f'RREDD {k} {vs}')#RREDD (1, 1) [('A', 1, 1), ('A', 2, 2), ('B', 1, 1), ('B', 2, 2)]
         def sortByJ(val):
             return val[1];
-
         A = []
         B = []
         for v in vs:
@@ -228,19 +300,66 @@ def createSparseMatrix(X, label):
     return list
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # [Uncomment peices to test]
 
+    ###################
+    ##run WordCount:
+
+    print("\n\n*****************\n Word Count\n*****************\n")
+    data = [(1, "The horse raced past the barn fell"),
+            (2, "The complex houses married and single soldiers and their families"),
+            (3, "There is nothing either good or bad, but thinking makes it so"),
+            (4, "I burn, I pine, I perish"),
+            (5, "Come what come may, time and the hour runs through the roughest day"),
+            (6, "Be a yardstick of quality."),
+            (7, "A horse is the projection of peoples' dreams about themselves - strong, powerful, beautiful"),
+            (8,
+             "I believe that at the end of the century the use of words and general educated opinion will have altered so much that one will be able to speak of machines thinking without expecting to be contradicted."),
+            (9, "The car raced past the finish line just in time."),
+            (10, "Car engines purred and the tires burned.")]
+    '''
+    print("\nWord Count Basic WITHOUT Combiner:")
+    mrObjectNoCombiner = WordCountBasicMR(data, 4, 3)
+    mrObjectNoCombiner.runSystem()
+    '''
+    print("\nWord Count Basic WITH Combiner:")
+    mrObjectWCombiner = WordCountBasicMR(data, 4, 3, use_combiner=True)
+    mrObjectWCombiner.runSystem()
+
+    ####################
+    ##run SetDifference (nothing to do here; just another test)
+    print("\n\n*****************\n Set Difference\n*****************\n")
+    test1 = [('R', []), ('S', [1, 2])]
+    test2 = [('R', [1, 3, 5]), ('S', [2, 4])]
+    test3 = [('R', range(1, 50001)), ('S', range(2, 50000))]
+    mrObject = SetDifferenceMR(test1, 2, 2)
+    mrObject.runSystem()
+    mrObject = SetDifferenceMR(test2, 2, 2)
+    mrObject.runSystem()
+    '''
+    mrObject = SetDifferenceMR(test3, 2, 2, use_combiner=True)
+    mrObject.runSystem()
+    '''
 
     ###################
     ##run Matrix Multiply:
 
     print("\n\n*****************\n Matrix Multiply\n*****************\n")
     #format: 'A|B:A.size:B.size
-    #test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)]
+    test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)   ]
+    test2 = createSparseMatrix([[1, 2, 4], [4, 8, 16]], 'A:2,3:3,3') + createSparseMatrix([[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
 
-    test1 = [(('A:2,2:2,1', 0, 0), 1), (('A:2,2:2,1', 0, 1), 2),(('A:2,2:2,1', 1, 0), 2),(('A:2,2:2,1', 1, 1), 1), (('B:2,2:2,1', 0, 0), 1),(('B:2,2:2,1', 1, 0), 2)]
-    #test2 = createSparseMatrix([[1, 2, 4], [4, 8, 16]], 'A:2,3:3,3') + createSparseMatrix(
-     #   [[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
+    test3 = createSparseMatrix(np.random.randint(-10, 10, (10,100)), 'A:10,100:100,12') + \
+	    createSparseMatrix(np.random.randint(-10, 10, (100,12)), 'B:10,100:100,12')
+
+    #print(test2[:10])
+    #print(test3[:10])
 
     mrObject = MatrixMultMR(test1, 4, 3)
+    mrObject.runSystem()
+
+    mrObject = MatrixMultMR(test2, 6, 4)
+    mrObject.runSystem()
+
+    mrObject = MatrixMultMR(test3, 16, 10)
     mrObject.runSystem()
