@@ -304,7 +304,7 @@ if __name__ == "__main__":  # [Uncomment peices to test]
 
     ###################
     ##run WordCount:
-
+    '''
     print("\n\n*****************\n Word Count\n*****************\n")
     data = [(1, "The horse raced past the barn fell"),
             (2, "The complex houses married and single soldiers and their families"),
@@ -316,16 +316,17 @@ if __name__ == "__main__":  # [Uncomment peices to test]
             (8,
              "I believe that at the end of the century the use of words and general educated opinion will have altered so much that one will be able to speak of machines thinking without expecting to be contradicted."),
             (9, "The car raced past the finish line just in time."),
-            (10, "Car engines purred and the tires burned.")]
+            (10, "Car engines purred and the tires burned.")]'''
     '''
     print("\nWord Count Basic WITHOUT Combiner:")
     mrObjectNoCombiner = WordCountBasicMR(data, 4, 3)
     mrObjectNoCombiner.runSystem()
     '''
+    '''
     print("\nWord Count Basic WITH Combiner:")
     mrObjectWCombiner = WordCountBasicMR(data, 4, 3, use_combiner=True)
     mrObjectWCombiner.runSystem()
-
+''''''
     ####################
     ##run SetDifference (nothing to do here; just another test)
     print("\n\n*****************\n Set Difference\n*****************\n")
@@ -335,7 +336,7 @@ if __name__ == "__main__":  # [Uncomment peices to test]
     mrObject = SetDifferenceMR(test1, 2, 2)
     mrObject.runSystem()
     mrObject = SetDifferenceMR(test2, 2, 2)
-    mrObject.runSystem()
+    mrObject.runSystem()'''
     '''
     mrObject = SetDifferenceMR(test3, 2, 2, use_combiner=True)
     mrObject.runSystem()
@@ -346,20 +347,20 @@ if __name__ == "__main__":  # [Uncomment peices to test]
 
     print("\n\n*****************\n Matrix Multiply\n*****************\n")
     #format: 'A|B:A.size:B.size
-    test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)   ]
+    ''' test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)   ]
     test2 = createSparseMatrix([[1, 2, 4], [4, 8, 16]], 'A:2,3:3,3') + createSparseMatrix([[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
-
+'''
     test3 = createSparseMatrix(np.random.randint(-10, 10, (10,100)), 'A:10,100:100,12') + \
 	    createSparseMatrix(np.random.randint(-10, 10, (100,12)), 'B:10,100:100,12')
 
     #print(test2[:10])
     #print(test3[:10])
 
-    mrObject = MatrixMultMR(test1, 4, 3)
+    '''  mrObject = MatrixMultMR(test1, 4, 3)
     mrObject.runSystem()
 
     mrObject = MatrixMultMR(test2, 6, 4)
     mrObject.runSystem()
-
+'''
     mrObject = MatrixMultMR(test3, 16, 10)
     mrObject.runSystem()
