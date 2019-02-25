@@ -23,7 +23,7 @@ def checkMatch(line):
     if(group):
         return [line[0],line[1]]; #[line[0],line[1].split(group.group(1))[1]]
 def checkE(loc):
-    print(f'Location -> {loc[0]}---{loc[1]}')
+    print(f'Location -> {loc[0]}---{loc[1]}--{loc[1][0]}')
 def returnMatch(line):
     group = (re.search(r'^.*\b((?i)ugh+|(?i)mm+|(?i)oh+|(?i)ah+|(?i)um+|(?i)hm+|(?i)huh+|(?i)ugh+|(?i)uh+|(?i)sigh+)(.)*\b.*$',str(line[1])))
     if(group):
@@ -40,9 +40,19 @@ print(w.collect())
 #print(st.collect())
 
 fd = w.join(rdd)
-print(fd.collect())
+#print(fd.collect())
 #[('Stony Brook, NY', ('lost my keys last night', '')), ('Springfield, IL', ('why?', ''))]
 #[('Stony Brook, NY', ('Ugh lost my keys last night', '')), ('Springfield, IL', ('New AWS tool, Data Bricks Ummmmmm why?', ''))]
 #Successfully collected all data which match location and post criteria
 
 #Step 3 - Count distinct elements for a group
+
+def countDist(loc):
+    print(f'Location -> {loc[0]}- Second list -{loc[1]}- Actual Post - {loc[1][0]}')
+    return;
+
+fd.foreach(countDist)
+'''
+def checkE(loc):
+    print(f'Location -> {loc[0]}---{loc[1]}--{loc[1][0]}')
+'''
