@@ -4,6 +4,8 @@
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/venv" />
     </content>
+    <content url="file://C:/spark/spark-2.3.3-bin-hadoop2.7/python" />
+    <content url="jar://C:/spark/spark-2.3.3-bin-hadoop2.7/python/lib/py4j-0.10.7-src.zip!/" />
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
