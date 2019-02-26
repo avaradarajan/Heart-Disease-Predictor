@@ -2,8 +2,8 @@
  ((2, 1), [('B', 1, 1), ('B', 2, 2), ('A', 1, 2), ('A', 2, 1)])]
 
 print(nnR[0][1])'''
-inp = [('Stony Brook, NY', ('lost my keys last night', '')), ('Springfield, IL', ('why?', ''))]
-print(inp[0][1][0])
+inp = ['The Big Orange, CA', 'Ugh lost my keys last night']
+print(inp[1])
 '''
 def take3(val):
     return val[1];

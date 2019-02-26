@@ -22,7 +22,7 @@ data = [('Stony Brook, NY', ('ughhh lost my keys last night', '')), ('Springfiel
 for d in data:
     list = (returnMatch(d[1][0]))
     if (list[1]!= None):
-        words = list[1].split(" ")
-        for i in words[:3]:
-            print(i)
+        words = list[1].split(" ").append("")
+        #for i in words[:3]:
+        print(f'{words[0]} {words[1]} {words[2]}')
         #print(list[1][len(list[0]):])

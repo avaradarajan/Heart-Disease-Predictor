@@ -19,16 +19,45 @@ def returnMatch(line):
 data = [('Stony Brook, NY', ('ughhh lost my keys last night', '')), ('Springfield, IL', ('New AWS tool, Data Bricks Umm. why?', ''))]
 
 #print(data[0][1][0]) #Extracts the post alone
-
+binArray = [[0 for i in range(127)] for i in range(3)]
 def hashMD5(word):
+    hash1 = False;
     sum = 0;
+    hashValue = 0;
     hv = hashlib.md5(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
+    hashValue = sum%127;
+    #if(binArray[0][sum % 127]==1):
+    #    hash1 =
+    #binArray[0][sum % 127] = 1
+def hashSHA256(word):
+    sum = 0;
+    hashValue = 0;
+    hv = hashlib.sha3_256(word.encode())
+    for i in hv.hexdigest():
+        sum = sum + ord(i)
     binArray[0][sum % 127] = 1
+def hashSHA512(word):
+    sum = 0;
+    hashValue = 0;
+    hv = hashlib.sha3_256(word.encode())
+    for i in hv.hexdigest():
+        sum = sum + ord(i)
+    binArray[0][sum % 127] = 1
+
 for d in data:
     list = (returnMatch(d[1][0]))
-    if (list!= None and nonFluencyDictionary.get(list[0][:2].lower())):
-        distinctPhraseCounts[nonFluencyDictionary[list[0][:2].lower()]] = distinctPhraseCounts[nonFluencyDictionary[list[0][:2].lower()]] + 1;
-        print(distinctPhraseCounts[nonFluencyDictionary[list[0][:2].lower()]])
-        print(list)
+    if (list[1]!= None):
+        words = list[1].split(" ")
+        for word in words[:3]:
+            if(word):
+                if(len(word)==1):
+                    if(ord(word)):
+                        hashMD5(word)
+                        hashSHA256(word)
+                        hashSHA512(word)
+                else:
+                    hashMD5(word)
+                    hashSHA256(word)
+                    hashSHA512(word)
