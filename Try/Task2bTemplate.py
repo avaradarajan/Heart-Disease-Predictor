@@ -154,7 +154,7 @@ def runTests(sc):
 
     # setup rdd
     import csv
-    smallTestRdd = sc.textFile(testFileSmall).mapPartitions(lambda line: csv.reader(line))
+    #smallTestRdd = sc.textFile(testFileSmall).mapPartitions(lambda line: csv.reader(line))
     ##pprint(smallTestRdd.take(5))  #uncomment to see data
     #pprint(umbler(sc, smallTestRdd))
 

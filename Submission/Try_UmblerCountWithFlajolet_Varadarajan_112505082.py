@@ -6,6 +6,10 @@
 from pyspark import SparkContext
 import re
 import hashlib
+import mmh3
+import math
+import numpy
+
 from operator import add
 import psutil #removes WARNS from console
 nonFluencyDictionary = {'mm':'MM','oh':'OH','ah':'OH','si':'SIGH', 'ug':'SIGH', 'uh':'SIGH','um':'UM', 'hm':'UM', 'hu':'UM'}
@@ -15,7 +19,7 @@ This function returns only records that has the non-fluencies
 '''
 def checkMatch(line):
     group = (re.search(
-        r'^.*\b(mmm+|ohh+|ahh+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line[1]),0|re.I))
+        r'^.*\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line[1]),0|re.I))
     if (group):
         return [line[0], line[1]];
 
@@ -23,7 +27,7 @@ def checkMatch(line):
 This function returns a tuple of the form (non-fluency group, text following group) for further reduction
 '''
 def returnMatch(line):
-    group = re.search(r'^.*\b(mmm+|ohh+|ahh+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line),0|re.I)
+    group = re.search(r'^.*\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line),0|re.I)
     if (group):
         return [group.group(1),re.sub(r"[\\?+ | \\:+ | \\*+ | \\#+ | \\@+ | \\;+ | \\,+ | \\)+ | \\(+]"," ",line.split(group.group(1))[1]).strip()];
 
@@ -35,8 +39,32 @@ def hashMD5(word):
     hv = hashlib.md5(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum%100000;
+    hashValue = sum;
     return hashValue;
+
+def hashSHA256(word):
+    hash2 = False;
+    sum = 0;
+    hashValue = 0;
+    hv = hashlib.sha3_256(word.encode())
+    for i in hv.hexdigest():
+        sum = sum + ord(i)
+    hashValue = sum;
+    return hashValue;
+
+def hashSHA512(word):
+    hash3 = False;
+    sum = 0;
+    hashValue = 0;
+    hv = hashlib.sha3_256(word.encode())
+    for i in hv.hexdigest():
+        sum = sum + ord(i)
+    hashValue = sum;
+    return hashValue;
+
+def hashMMH3(word):
+    hv = mmh3.hash(word.encode())
+    return hv;
 
 def trail(hashvalue):
     num = 0;
@@ -48,8 +76,19 @@ def trail(hashvalue):
             num = num+1;
         return num;
 def FlajoletMartin(word):
-    hashValue = hashMD5(word)
-    return trail(hashValue)
+    hashValueFromMD5 = hashMD5(word)
+    hashValueFromSHA256 = hashMD5(word)
+    hashValueFromSHA512 = hashMD5(word)
+    hashValueFromMMH3 = hashMMH3(word)
+    t1 = trail(hashValueFromMD5)
+    t2 = trail(hashValueFromSHA256)
+    t3 = trail(hashValueFromSHA512)
+    t4 = trail(hashValueFromMMH3)
+
+    avg1 = ((2**t1)+(2**t2))/2;
+    avg2 = ((2**t4)+(2**t3))/2;
+
+    return math.ceil(numpy.median([avg1,avg2]))
 
 
 
@@ -101,10 +140,9 @@ def umbler(sc, rdd):
             for word in words[:3]:
                 if (word):
                     wordToBeHashed += word;
-            h1 = hashMD5(wordToBeHashed)
             max_so_far = FlajoletMartin(wordToBeHashed)
             return (nonFluencyDictionary.get(list[0][:2].lower()),
-                    2**max_so_far)
+                    max_so_far)
 
     filteredAndCountedRdd = validPostsToCountRDD.map(lambda  x: countDistinctUsingStreamingAlgorithm(x)).filter(lambda x : x is not None).reduceByKey(lambda x,y : max(x,y))
 

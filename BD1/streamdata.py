@@ -26,7 +26,7 @@ rdd = sc.textFile('C://Users//anand//Downloads//convertcsv.csv').map(lambda inp:
 #rdd.foreach(checkE)
 
 lines = ssc.socketTextStream("localhost",9999)
-w = lines.map(lambda x: x.replace(".",'').repl).map(lambda x:(x.split(',"')[0],checkMatch(x.split(',"')[1])))
+w = lines.map(lambda x: x)#.replace(".",'').repl).map(lambda x:(x.split(',"')[0],checkMatch(x.split(',"')[1])))
 w.pprint()
 ssc.start()
 ssc.awaitTermination()

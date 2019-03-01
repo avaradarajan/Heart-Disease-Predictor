@@ -49,7 +49,7 @@ def sparkMatrixMultiply(rdd):
 
     resultRdd = rdd.flatMap(lambda k : sparkMap(k[0],k[1])).\
     groupByKey().map(lambda x: (x[0],list(x[1]))).\
-    map(lambda k : sparkReduce(k[0], k[1]))
+    map(lambda k : sparkReduce(k[0], k[1])).sortByKey(ascending=True)
     return resultRdd
 
 
@@ -100,8 +100,7 @@ def runTests(sc):
     test1 = [(('A:1,2:2,1', 0, 0), 2.0), (('A:1,2:2,1', 0, 1), 1.0), (('B:1,2:2,1', 0, 0), 1), (('B:1,2:2,1', 1, 0), 3)]
     test2 = createSparseMatrix([[1, 2, 4], [4, 8, 16]], 'A:2,3:3,3') + createSparseMatrix(
         [[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
-    #test3 = createSparseMatrix(np.random.randint(-10, 10, (10, 100)), 'A:10,100:100,12') + createSparseMatrix(
-    #    np.random.randint(-10, 10, (100, 12)), 'B:10,100:100,12')
+    test3 = createSparseMatrix(np.random.randint(-10, 10, (10, 100)), 'A:10,100:100,12') + createSparseMatrix(np.random.randint(-10, 10, (100, 12)), 'B:10,100:100,12')
     mmResults = sparkMatrixMultiply(sc.parallelize(test1))
     pprint(mmResults.collect())
     mmResults = sparkMatrixMultiply(sc.parallelize(test2))

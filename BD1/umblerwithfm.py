@@ -1,6 +1,6 @@
 # Anandh Varadarajan, 112505082
 
-# code for CSE545 - Spring 2019 - Try the count with another approximation algorithm Flajolet Martin
+# Template code for CSE545 - Spring 2019
 # Assignment 1 - Part II
 # v0.01
 from pyspark import SparkContext
@@ -9,7 +9,7 @@ import hashlib
 from operator import add
 import psutil #removes WARNS from console
 nonFluencyDictionary = {'mm':'MM','oh':'OH','ah':'OH','si':'SIGH', 'ug':'SIGH', 'uh':'SIGH','um':'UM', 'hm':'UM', 'hu':'UM'}
-
+maxs = 0
 '''
 This function returns only records that has the non-fluencies
 '''
@@ -27,30 +27,31 @@ def returnMatch(line):
     if (group):
         return [group.group(1),re.sub(r"[\\?+ | \\:+ | \\*+ | \\#+ | \\@+ | \\;+ | \\,+ | \\)+ | \\(+]"," ",line.split(group.group(1))[1]).strip()];
 
+#Creating an array for the Bloom Filter
+binArray = [0 for i in range(10000)]
 
 def hashMD5(word):
-    hash1 = False;
     sum = 0;
     hashValue = 0;
     hv = hashlib.md5(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum%100000;
+    hashValue = sum%10000;
     return hashValue;
 
-def trail(hashvalue):
-    num = 0;
-    if hashvalue==0:
+def trail(hv):
+    n = 0;
+    print(hv)
+    if hv==0:
         return 0;
     else:
-        while ((hashvalue) & 1) == 0:
-            hashvalue = hashvalue>>1
-            num = num+1;
-        return num;
-def FlajoletMartin(word):
-    hashValue = hashMD5(word)
-    return trail(hashValue)
-
+        while ((hv) & 1) == 0:
+            hv = hv>>1
+            n = n+1;
+        return n;
+def FM(word):
+    h1 = hashMD5(word)
+    return trail(h1)
 
 
 #loads the count values into corresponding dictionary.
@@ -59,30 +60,41 @@ def loadResultDictionary(filteredAndCountedRdd,distinctPhraseCounts):
     umRDD = filteredAndCountedRdd.filter(lambda x: x[0] == 'UM').map(lambda x: x[1])
     mmRDD = filteredAndCountedRdd.filter(lambda x: x[0] == 'MM').map(lambda x: x[1])
     ohRDD = filteredAndCountedRdd.filter(lambda x: x[0] == 'OH').map(lambda x: x[1])
+
     if (not sighRDD.isEmpty()):
-        distinctPhraseCounts['SIGH'] = sighRDD.reduce(lambda x : x)
+        distinctPhraseCounts['SIGH'] = sighRDD.reduce(add)
 
     if (not umRDD.isEmpty()):
-        distinctPhraseCounts['UM'] = umRDD.reduce(lambda x : x)
+        distinctPhraseCounts['UM'] = umRDD.reduce(add)
 
     if (not mmRDD.isEmpty()):
-        distinctPhraseCounts['MM'] = mmRDD.reduce(lambda x : x)
+        distinctPhraseCounts['MM'] = mmRDD.reduce(add)
 
     if (not ohRDD.isEmpty()):
-        distinctPhraseCounts['OH'] = ohRDD.reduce(lambda x : x)
+        distinctPhraseCounts['OH'] = ohRDD.reduce(add)
+
+sc = SparkContext(master="local[*]",appName="PythonStreamingNetworkWordCount")
+ac = sc.accumulator(0)
 
 
-def umbler(sc, rdd):
-    # sc: the current spark context
-    #    (useful for creating broadcast or accumulator variables)
-    # rdd: an RDD which contains location, post data.
-    #
-    # returns a *dictionary* (not an rdd) of distinct phrases per um category
-    distinctPhraseCounts = {'MM': 0, 'OH': 0, 'SIGH': 0, 'UM': 0}
+def countDistinctUsingStreamingAlgorithm(d):
+    print(f'Input -> {len(d)} {d}')
+    global maxs
+    list = (returnMatch(d[1]))
+    wordToBeHashed = ""
+    if (list is not None):
+        words = list[1].replace(".", "").replace("!", "").split(" ")
+        for word in words[:3]:
+            if (word):
+                wordToBeHashed += word;
+        h1 = hashMD5(wordToBeHashed)
+        print(f'Hash value of {wordToBeHashed} {h1}')
+        cmax = FM(wordToBeHashed)
+        return (nonFluencyDictionary.get(list[0][:2].lower()),
+         cmax)
 
-    #Load the locations in an RDD
-    locationRDD = sc.textFile('C://Users//anand//Downloads//convertcsv.csv').map(lambda inp: inp.replace('"', "")).map(
-        lambda x: (x, ''))
+
+def sq(x,y):
 
     #Load the RDD with records containing only the non-fluencies
     nonFluenciesRDD = rdd.map(lambda x: list(x)).map(lambda x: checkMatch(x)).filter(lambda x: x != None).map(
@@ -93,22 +105,13 @@ def umbler(sc, rdd):
 
     # SETUP for streaming algorithms
     #custom bloom filter implementation for distinct word count
-    def countDistinctUsingStreamingAlgorithm(d):
-        list = (returnMatch(d[1]))
-        wordToBeHashed = ""
-        if (list is not None):
-            words = list[1].replace(".", "").replace("!", "").split(" ")
-            for word in words[:3]:
-                if (word):
-                    wordToBeHashed += word;
-            h1 = hashMD5(wordToBeHashed)
-            max_so_far = FlajoletMartin(wordToBeHashed)
-            return (nonFluencyDictionary.get(list[0][:2].lower()),
-                    2**max_so_far)
 
-    filteredAndCountedRdd = validPostsToCountRDD.map(lambda  x: countDistinctUsingStreamingAlgorithm(x)).filter(lambda x : x is not None).reduceByKey(lambda x,y : max(x,y))
+    filteredAndCountedRdd = validPostsToCountRDD.map(lambda  x: countDistinctUsingStreamingAlgorithm(x)).filter(lambda x : x is not None).reduceByKey(lambda x,y : max(x,y)).reduceByKey(sq)
+    print(filteredAndCountedRdd.collect())
+    #validPostsToCountRDD.foreach(countDistinctUsingStreamingAlgorithm)
+    #print(f'MAX {ac.value}')
 
-    loadResultDictionary(filteredAndCountedRdd,distinctPhraseCounts)
+    #loadResultDictionary(filteredAndCountedRdd,distinctPhraseCounts)
 
     return distinctPhraseCounts
 
@@ -121,7 +124,9 @@ from pprint import pprint
 from scipy import sparse
 
 
+
 def runTests(sc):
+    # runs MM and Umbler Tests for the given sparkContext
 
     #Umbler Tests:
     print("\n*************************\n Umbler Tests\n*************************")
@@ -131,9 +136,9 @@ def runTests(sc):
     # setup rdd
     import csv
 
-    smallTestRdd = sc.textFile(testFileSmall).mapPartitions(lambda line: csv.reader(line))
+    #smallTestRdd = sc.textFile(testFileSmall).mapPartitions(lambda line: csv.reader(line))
     #pprint(smallTestRdd.take(5))  #uncomment to see data
-    pprint(umbler(sc, smallTestRdd))
+    #pprint(umbler(sc, smallTestRdd))
 
     largeTestRdd = sc.textFile(testFileLarge).mapPartitions(lambda line: csv.reader(line))
     ##pprint(largeTestRdd.take(5))  #uncomment to see data
@@ -141,6 +146,4 @@ def runTests(sc):
 
     return
 
-sc = SparkContext(master="local[*]",appName="PythonStreamingNetworkWordCount")
 runTests(sc)
-sc.stop()
