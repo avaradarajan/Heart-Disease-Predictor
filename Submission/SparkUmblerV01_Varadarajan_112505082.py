@@ -15,20 +15,28 @@ This function returns only records that has the non-fluencies
 '''
 def checkMatch(line):
     group = (re.search(
-        r'^.*\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line[1]),0|re.I))
+        r'^.*\b(mm+|oh+|ah+|um+|hm+|huh|ugh|uh|sigh|sighed|sighing|sighs)\b(.)*\b.*$',str(line[1]),0|re.I))
     if (group):
         return [line[0], line[1]];
 
 '''
-This function returns a tuple of the form (non-fluency group, text following group) for further reduction
+This function returns a list of lists of the form [[non-fluency group, text following group]] for further reduction. It considers non-fluency appearing multiple times in the same post
 '''
 def returnMatch(line):
-    group = re.search(r'^.*\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line),0|re.I)
-    if (group):
-        return [group.group(1),re.sub(r"[\\?+ | \\:+ | \\*+ | \\#+ | \\@+ | \\;+ | \\,+ | \\)+ | \\(+]"," ",line.split(group.group(1))[1]).strip()];
+    currentList = []
+    for match in re.finditer(r'\b(mm+|oh+|ah+|um+|hm+|huh|ugh|uh|sigh|sighed|sighing|sighs)\b', line,0|re.I):
+        word = line[match.start():].split(" ");
+        group = line[match.start():match.end()]
+        final = ""
+        for val in word[1:4]:
+            final += val
+        currentList.append([group, final.strip()])
+    #pprint(f'{currentList}')
+    return currentList;
 
 #Creating an array for the Bloom Filter
-binArray = [0 for i in range(10000)]
+#Considered this array of 50K size. Upper bound(approximation) was chosed based on the consideration of the # of bits each has can output coupled with my custom hash constant
+binArray = [0 for i in range(50000)]
 
 def hashMD5(word):
     hash1 = False;
@@ -37,7 +45,7 @@ def hashMD5(word):
     hv = hashlib.md5(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum%10000;
+    hashValue = sum*4;
     if(binArray[hashValue]==1):
         hash1 = True;
     else:
@@ -52,7 +60,7 @@ def hashSHA256(word):
     hv = hashlib.sha3_256(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum % 10000;
+    hashValue = sum*3;
     if (binArray[hashValue] == 1):
         hash2 = True;
     else:
@@ -63,10 +71,10 @@ def hashSHA512(word):
     hash3 = False;
     sum = 0;
     hashValue = 0;
-    hv = hashlib.sha3_256(word.encode())
+    hv = hashlib.sha3_512(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum % 10000;
+    hashValue = sum * 2;
     if (binArray[hashValue] == 1):
         hash3 = True;
     else:
@@ -176,7 +184,7 @@ def umbler(sc, rdd):
 
     #Load the RDD with records containing only the non-fluencies
     nonFluenciesRDD = rdd.map(lambda x: list(x)).map(lambda x: checkMatch(x)).filter(lambda x: x != None).map(
-        lambda x: (x[0], str(x[1]).replace(".", "").strip()))
+        lambda x: (x[0], str(x[1]).strip()))
 
     #Join the NF RDD with location RDD -> To get another RDD that includes final records to be processed for distinct words following non-fluency
     validPostsToCountRDD = nonFluenciesRDD.join(locationRDD).map(lambda x : [x[0],x[1][0]])
@@ -184,25 +192,22 @@ def umbler(sc, rdd):
     # SETUP for streaming algorithms
     #custom bloom filter implementation for distinct word count
     def countDistinctUsingStreamingAlgorithm(d):
-        list = (returnMatch(d[1]))
+        list = returnMatch(d[1])
         wordToBeHashed = ""
         if (list is not None):
-            words = list[1].replace(".", "").replace("!", "").split(" ")
-            for word in words[:3]:
-                if (word):
-                    wordToBeHashed += word;
-            h1 = hashMD5(wordToBeHashed)
-            h2 = hashSHA256(wordToBeHashed)
-            h3 = hashSHA512(wordToBeHashed)
-            if (not (h1 and h2 and h3)):
-                if (nonFluencyDictionary.get(list[0][:2].lower())):
-                    distinctPhraseCounts[nonFluencyDictionary[list[0][:2].lower()]] = distinctPhraseCounts.get(
-                        nonFluencyDictionary[list[0][:2].lower()]) + 1;
-                    return (nonFluencyDictionary.get(list[0][:2].lower()),
-                    1);
-                else:
-                    return (nonFluencyDictionary.get(list[0][:2].lower()),
-                        0);
+            for grp,post in list:
+                if post:
+                    wordToBeHashed = nonFluencyDictionary.get(grp[:2].lower())+post.lower();
+                    h1 = hashMD5(wordToBeHashed)
+                    h2 = hashSHA256(wordToBeHashed)
+                    h3 = hashSHA512(wordToBeHashed)
+                    if (not (h1 and h2 and h3)):
+                        if (nonFluencyDictionary.get(grp[:2].lower())):
+                         return (nonFluencyDictionary.get(grp[:2].lower()),
+                            1);
+                        else:
+                         return (nonFluencyDictionary.get(grp[:2].lower()),
+                            0);
 
 
     filteredAndCountedRdd = validPostsToCountRDD.map(lambda  x: countDistinctUsingStreamingAlgorithm(x)).filter(lambda x : x is not None).reduceByKey(add)
@@ -238,12 +243,15 @@ def runTests(sc):
         [[1, 1, 1], [2, 2, 2], [4, 4, 4]], 'B:2,3:3,3')
     test3 = createSparseMatrix(np.random.randint(-10, 10, (10, 100)), 'A:10,100:100,12') + createSparseMatrix(
         np.random.randint(-10, 10, (100, 12)), 'B:10,100:100,12')
-    mmResults = sparkMatrixMultiply(sc.parallelize(test1))
+    '''mmResults = sparkMatrixMultiply(sc.parallelize(test1))
     pprint(mmResults.collect())
+    print("\n")
     mmResults = sparkMatrixMultiply(sc.parallelize(test2))
     pprint(mmResults.collect())
+    print("\n")
     mmResults = sparkMatrixMultiply(sc.parallelize(test3))
-    pprint(mmResults.collect())
+    pprint(mmResults.collect())'''
+    print("\n")
 
     #Umbler Tests:
     print("\n*************************\n Umbler Tests\n*************************")
@@ -256,7 +264,7 @@ def runTests(sc):
     smallTestRdd = sc.textFile(testFileSmall).mapPartitions(lambda line: csv.reader(line))
     #pprint(smallTestRdd.take(5))  #uncomment to see data
     pprint(umbler(sc, smallTestRdd))
-
+    print("\n")
     largeTestRdd = sc.textFile(testFileLarge).mapPartitions(lambda line: csv.reader(line))
     ##pprint(largeTestRdd.take(5))  #uncomment to see data
     pprint(umbler(sc, largeTestRdd))

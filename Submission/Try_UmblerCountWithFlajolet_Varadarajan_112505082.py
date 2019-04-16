@@ -27,9 +27,15 @@ def checkMatch(line):
 This function returns a tuple of the form (non-fluency group, text following group) for further reduction
 '''
 def returnMatch(line):
-    group = re.search(r'^.*\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line),0|re.I)
-    if (group):
-        return [group.group(1),re.sub(r"[\\?+ | \\:+ | \\*+ | \\#+ | \\@+ | \\;+ | \\,+ | \\)+ | \\(+]"," ",line.split(group.group(1))[1]).strip()];
+    currentList = []
+    for m in re.finditer(r'\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b', line,0|re.I):
+        word = line[m.start():].split(" ");
+        group = line[m.start():m.end()]
+        final = ""
+        for val in word[1:4]:
+            final += val
+        currentList.append([group, final.strip()])
+    return currentList;
 
 
 def hashMD5(word):
@@ -56,7 +62,7 @@ def hashSHA512(word):
     hash3 = False;
     sum = 0;
     hashValue = 0;
-    hv = hashlib.sha3_256(word.encode())
+    hv = hashlib.sha3_512(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
     hashValue = sum;
@@ -125,7 +131,7 @@ def umbler(sc, rdd):
 
     #Load the RDD with records containing only the non-fluencies
     nonFluenciesRDD = rdd.map(lambda x: list(x)).map(lambda x: checkMatch(x)).filter(lambda x: x != None).map(
-        lambda x: (x[0], str(x[1]).replace(".", "").strip()))
+        lambda x: (x[0], str(x[1]).strip()))
 
     #Join the NF RDD with location RDD -> To get another RDD that includes final records to be processed for distinct words following non-fluency
     validPostsToCountRDD = nonFluenciesRDD.join(locationRDD).map(lambda x : [x[0],x[1][0]])
@@ -133,16 +139,16 @@ def umbler(sc, rdd):
     # SETUP for streaming algorithms
     #custom bloom filter implementation for distinct word count
     def countDistinctUsingStreamingAlgorithm(d):
-        list = (returnMatch(d[1]))
+        list = returnMatch(d[1])
         wordToBeHashed = ""
         if (list is not None):
-            words = list[1].replace(".", "").replace("!", "").split(" ")
-            for word in words[:3]:
-                if (word):
-                    wordToBeHashed += word;
-            max_so_far = FlajoletMartin(wordToBeHashed)
-            return (nonFluencyDictionary.get(list[0][:2].lower()),
-                    max_so_far)
+            for grp,post in list:
+                if post:
+                    wordToBeHashed = grp+post;
+                    max_so_far = FlajoletMartin(wordToBeHashed)
+                    return (nonFluencyDictionary.get(grp[:2].lower()),
+                            max_so_far)
+
 
     filteredAndCountedRdd = validPostsToCountRDD.map(lambda  x: countDistinctUsingStreamingAlgorithm(x)).filter(lambda x : x is not None).reduceByKey(lambda x,y : max(x,y))
 

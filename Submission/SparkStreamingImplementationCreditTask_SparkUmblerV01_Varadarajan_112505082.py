@@ -24,12 +24,18 @@ def checkMatch(line):
 This function returns a tuple of the form (non-fluency group, text following group) for further reduction
 '''
 def returnMatch(line):
-    group = re.search(r'^.*\b(mmm+|ohh+|ahh+|umm*|hmm*|huh|ugh|uh|sigh+)\b(.)*\b.*$',str(line),0|re.I)
-    if (group):
-        return [group.group(1),re.sub(r"[\\?+ | \\:+ | \\*+ | \\#+ | \\@+ | \\;+ | \\,+ | \\)+ | \\(+]"," ",line.split(group.group(1))[1]).strip()];
+    currentList = []
+    for m in re.finditer(r'\b(mm+|oh+|ah+|umm*|hmm*|huh|ugh|uh|sigh+)\b', line,0|re.I):
+        word = line[m.start():].split(" ");
+        group = line[m.start():m.end()]
+        final = ""
+        for val in word[1:4]:
+            final += val
+        currentList.append([group, final.strip()])
+    return currentList;
 
 #Creating an array for the Bloom Filter
-binArray = [0 for i in range(10000)]
+binArray = [0 for i in range(50000)]
 
 def hashMD5(word):
     hash1 = False;
@@ -38,7 +44,7 @@ def hashMD5(word):
     hv = hashlib.md5(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum%10000;
+    hashValue = sum*4;
     if(binArray[hashValue]==1):
         hash1 = True;
     else:
@@ -53,7 +59,7 @@ def hashSHA256(word):
     hv = hashlib.sha3_256(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum % 10000;
+    hashValue = sum*3;
     if (binArray[hashValue] == 1):
         hash2 = True;
     else:
@@ -64,10 +70,10 @@ def hashSHA512(word):
     hash3 = False;
     sum = 0;
     hashValue = 0;
-    hv = hashlib.sha3_256(word.encode())
+    hv = hashlib.sha3_512(word.encode())
     for i in hv.hexdigest():
         sum = sum + ord(i)
-    hashValue = sum % 10000;
+    hashValue = sum*2;
     if (binArray[hashValue] == 1):
         hash3 = True;
     else:
@@ -97,22 +103,24 @@ def loadResultDictionary(filteredAndCountedRdd,distinctPhraseCounts):
 
 distinctPhraseCounts = {'MM': 0, 'OH': 0, 'SIGH': 0, 'UM': 0}
 
+
 def countDistinctUsingStreamingAlgorithm(d):
-    list = (returnMatch(d[1]))
+    list = returnMatch(d[1])
     wordToBeHashed = ""
     if (list is not None):
-        words = list[1].replace(".", "").replace("!", "").split(" ")
-        for word in words[:3]:
-            if (word):
-                wordToBeHashed += word;
-        h1 = hashMD5(wordToBeHashed)
-        h2 = hashSHA256(wordToBeHashed)
-        h3 = hashSHA512(wordToBeHashed)
-        if (not (h1 and h2 and h3)):
-            if (nonFluencyDictionary.get(list[0][:2].lower())):
-                return (nonFluencyDictionary.get(list[0][:2].lower()),1);
-            else:
-                return (nonFluencyDictionary.get(list[0][:2].lower()),0);
+        for grp, post in list:
+            if post:
+                wordToBeHashed = grp + post;
+                h1 = hashMD5(wordToBeHashed)
+                h2 = hashSHA256(wordToBeHashed)
+                h3 = hashSHA512(wordToBeHashed)
+                if (not (h1 and h2 and h3)):
+                    if (nonFluencyDictionary.get(grp[:2].lower())):
+                        return (nonFluencyDictionary.get(grp[:2].lower()),
+                                1);
+                    else:
+                        return (nonFluencyDictionary.get(grp[:2].lower()),
+                                0);
 
 
 #Creating spark context

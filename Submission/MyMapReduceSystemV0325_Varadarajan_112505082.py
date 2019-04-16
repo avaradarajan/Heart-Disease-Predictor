@@ -28,7 +28,7 @@ from abc import ABCMeta, abstractmethod
 from multiprocessing import Process, Manager
 from pprint import pprint
 import numpy as np
-import psutil #removes WARNS from console
+#import psutil #removes WARNS from console
 from random import random
 
 
@@ -385,7 +385,7 @@ if __name__ == "__main__":
     mrObject = MatrixMultMR(test2, 6, 4)
     mrObject.runSystem()
 
-    mrObject = MatrixMultMR(test3, 16, 10)
-    mrObject.runSystem()
+    #mrObject = MatrixMultMR(test3, 16, 10)
+    #mrObject.runSystem()
 
 
